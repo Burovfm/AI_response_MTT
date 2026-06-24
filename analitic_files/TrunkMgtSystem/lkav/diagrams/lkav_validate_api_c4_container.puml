@@ -1,0 +1,62 @@
+@startuml LKAV_Validate_C4_Container
+!NEW_C4_STYLE=1
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title C4 Container Diagram — AV/MAV Order System
+
+' --- Actor ---
+
+Person(dks_employee, "Сотрудник ДКС", "Оператор включения/отключения услуги")
+
+' --- External software systems ---
+
+System_Ext(porta, "Porta", "Software System")
+System_Ext(onyma, "Onyma", "Software System")
+System_Ext(exolve_lkr, "Exolve LKR", "Software System")
+System_Ext(nms, "NMS", "Software System")
+System_Ext(dadata, "DaData", "Software System")
+
+' --- System boundary ---
+
+System_Boundary(av_mav_sys, "AV/MAV Order System") {
+    Container(validate_api, "AV/MAV Validate API", "Golang", "Интерфейс для сотрудника ДКС")
+    Container(number_storage_api, "number-storage-api", "Golang", "AV/MAV Order Service")
+    ContainerDb(number_storage_db, "NumberStorageDB", "PostgreSQL")
+    ContainerQueue(mts_kafka, "mts kafka", "Kafka")
+    Container(mts_callback_worker, "MTS Callback Worker", "Golang")
+    ContainerQueue(porta_rmq, "Porta RMQ", "RabbitMQ")
+    Container(porta_sync_worker, "porta-numbers-sync-worker", "Golang")
+    ContainerQueue(onyma_rmq, "Onyma RMQ", "RabbitMQ")
+    Container(onyma_sync_worker, "onyma-numbers-sync-worker", "Golang")
+}
+
+' --- Relationships ---
+
+Rel(dks_employee, validate_api, "Запрос на включение/отключение услуги")
+
+Rel(validate_api, exolve_lkr, "Check active order")
+Rel(validate_api, onyma, "Enable service")
+Rel(validate_api, porta, "Enable service")
+Rel(validate_api, number_storage_api, "Activate/deactivate service")
+Rel(number_storage_api, validate_api, "Check active order")
+
+Rel(number_storage_api, nms, "get numbers by account")
+Rel(number_storage_api, number_storage_db, "Check active operation")
+Rel(number_storage_api, dadata, "get OKVED")
+
+Rel(onyma, onyma_rmq, "Событие изменения аккаунта")
+Rel(onyma_rmq, onyma_sync_worker, "Событие изменения аккаунта")
+Rel(onyma_sync_worker, number_storage_api, "Событие изменения аккаунта")
+
+Rel(porta, porta_rmq, "Enable service")
+Rel(porta_rmq, porta_sync_worker, "Enable service")
+Rel(porta_sync_worker, number_storage_api, "Событие изменения аккаунта")
+
+Rel(number_storage_api, mts_kafka, "task for operators")
+Rel(number_storage_api, mts_kafka, "Событие изменения аккаунта")
+Rel(mts_kafka, mts_callback_worker, "task for service")
+Rel(mts_callback_worker, number_storage_api, "task for service")
+
+@enduml
